@@ -4,6 +4,7 @@ library(readxl)
 library(Hmisc)
 library(stats)
 library(corrplot)
+library(lm.beta)
 
 # Read in and format data -------------------------------------------------
 
@@ -240,27 +241,23 @@ corrplot(M.comp.f, method="color", col=col(200),
 # format CNP data ---------------------------------------------------------
 
 #reformat id so that family id and subject id are combined in study-id column
-CNPproc$study_id <- paste(CNPproc$test_sessions.famid, CNPproc$test_sessions.subid, sep = "")
+cnp.proc$study_id <- paste(cnp.proc$test_sessions.famid, cnp.proc$test_sessions.subid, sep = "")
 
 #change name of first column to study_id
-colnames(CNPremote)[colnames(CNPremote)=="test_sessions_v.localid"] <- "study_id"
+colnames(cnp.remote)[colnames(cnp.remote)=="test_sessions_v.localid"] <- "study_id"
 
 #select relevant columns
-CNPremote <- CNPremote[,c("study_id",
+cnp.remote <- cnp.remote[,c("study_id",
                           "K_ER40.ER40_CR","K_ER40.ER40_CRT",
-                          "MEDF36.MEDF36_A","MEDF36.MEDF36_T",
-                          "ADT36.ADT36_A","ADT36.ADT36_T",
                           "PMAT24A.PMAT24_A_CR", "PMAT24A.PMAT24_A_RTCR",
                           "PCET.PCETRTCR","PCET.PCET_ACC2")]
-CNPproc <- CNPproc[,c("study_id",
+cnp.proc <- cnp.proc[,c("study_id",
                       "K_ER40.ER40_CR","K_ER40.ER40_CRT",
-                      "MEDF36.MEDF36_A","MEDF36.MEDF36_T",
-                      "ADT36.ADT36_A","ADT36.ADT36_T",
                       "PMAT24A.PMAT24_A_CR", "PMAT24A.PMAT24_A_RTCR",
                       "PCET.PCETRTCR","PCET.PCET_ACC2")]
 #merge data to be graphed
-merge.remote <- merge(dem, CNPremote, by = "study_id")
-merge.proc <- merge(dem, CNPproc, by = "study_id")
+merge.remote <- merge(dem, cnp.remote, by = "study_id")
+merge.proc <- merge(dem, cnp.proc, by = "study_id")
 
 merge.remote$Method <- "Remote"
 merge.proc$Method <- "Proctored"
@@ -275,162 +272,195 @@ cnp.f.unaff <- subset(temp, temp$Affected == "No")
 
 # CNP correlations --------------------------------------------------------
 
-cnp.p.na <- na.omit (cnp.p)
+cnp.p.na <- na.omit (cnp.p[,c(5:8,10,9,2)])
+colnames(cnp.p.na) <- c("ER40 CR", "ER40 RT",
+                        "PMAT CR", "PMAT RT",
+                        "PCET ACC", "PCET RT", "Age")
 
 cormat.p = as.matrix(as.data.frame(lapply(cnp.p.na, as.numeric)))
 stat.p <- rcorr(cormat.p, type = "spearman")
 p.p <- formatC(stat.p$P, format = "e", digits = 2)
 
-cnp.f.na <- na.omit (cnp.f.unaff)
+cnp.f.na <- na.omit (cnp.f.unaff[,c(5:8,10,9,2)])
+colnames(cnp.f.na) <- c("ER40 CR", "ER40 RT",
+                        "PMAT CR", "PMAT RT",
+                        "PCET ACC", "PCET RT", "Age")
 
 cormat.f = as.matrix(as.data.frame(lapply(cnp.f.na, as.numeric)))
 stat.f <- rcorr(cormat.f, type = "spearman")
 p.f <- formatC(stat.f$P, format = "e", digits = 2)
 
+# plot CNP correlations ---------------------------------------------------
+
+M.cnp.p = cor(cormat.p, method = "spearman")
+
+col <- colorRampPalette(c("red3","white","turquoise3"))
+corrplot(M.cnp.p, method="color", col=col(200),  
+         type="upper", 
+         addCoef.col = "black", # Add coefficient of correlation
+         tl.col="black", tl.srt=60, #Text label color and rotation
+         p.mat = stat.p$P, sig.level = 0.026, insig = "blank", # Combine with significance
+         diag=FALSE)
+
+M.cnp.f = cor(cormat.f, method = "spearman")
+
+col <- colorRampPalette(c("red3","white","turquoise3"))
+corrplot(M.cnp.f, method="color", col=col(200),  
+         type="upper", 
+         addCoef.col = "black",
+         tl.col="black", tl.srt=60, 
+         p.mat = stat.f$P, sig.level = 0.02857, insig = "blank", 
+         diag=FALSE)
 # CNP regressions ---------------------------------------------------------
+mergeSelf.cnp.p <- merge(mergeSelf.p,cnp.p,by = "study_id")
+mergeInf.cnp.p <- merge(mergeInf.p,cnp.p,by = "study_id")
+mergeSelf.cnp.f <- merge(unaff.f.self,cnp.f,by = "study_id")
+mergeInf.cnp.f <- merge(unaff.f.inf,cnp.f,by = "study_id")
+
 #PROBANDS
-#ER40 accuracy with SRS SR total and SRS SR Soc Cog
-lm1 <- lm (K_ER40.ER40_CR ~ part_age_screen +  
-             srs2a_sr_raw , data = merge.all.p)
+#ER40 accuracy with SRS SR total
+lm1 <- lm (K_ER40.ER40_CR ~ part_age_screen.x +  
+             srs2a_sr_raw , data = mergeSelf.cnp.p)
 summary(lm1)
 lm.beta(lm1)
 
-#ER40 accuracy with SRS IR total and SRS IR Soc Cog
-lm2 <- lm (K_ER40.ER40_CR ~ part_age_screen +  
-             srs2a_ir_raw , data = merge.all.p)
+#ER40 accuracy with SRS IR total
+lm2 <- lm (K_ER40.ER40_CR ~ part_age_screen.x +  
+             srs2a_ir_raw , data = mergeInf.cnp.p)
 summary(lm2)
 lm.beta(lm2)
 
-#ER40 RT with SRS SR total and SRS SR Soc Cog
-lm3 <- lm (K_ER40.ER40_CRT ~ part_age_screen + 
-             srs2a_sr_raw , data = merge.all.p)
+#ER40 RT with SRS SR total 
+lm3 <- lm (K_ER40.ER40_CRT ~ part_age_screen.x + 
+             srs2a_sr_raw , data = mergeSelf.cnp.p)
 summary(lm3)
 lm.beta(lm3)
 
-#ER40 RT with SRS IR total and SRS IR Soc Cog
-lm4 <- lm (K_ER40.ER40_CRT ~ part_age_screen +  
-             srs2a_ir_raw , data = merge.all.p)
+#ER40 RT with SRS IR total 
+lm4 <- lm (K_ER40.ER40_CRT ~ part_age_screen.x +  
+             srs2a_ir_raw , data = mergeInf.cnp.p)
 summary(lm4)
 lm.beta(lm4)
 
-#PCET accuracy with SRS SR total and BRIEF SR total
-lm1 <- lm (PCET.PCET_ACC2 ~ part_age_screen + briefa_sr_gec_raw , data = merge.all.p)
+#PCET accuracy with BRIEF SR total
+lm1 <- lm (PCET.PCET_ACC2 ~ part_age_screen.x 
+           + briefa_sr_gec_raw , data = mergeSelf.cnp.p)
 summary(lm1)
 lm.beta(lm1)
 
-#PCET accuracy with SRS IR total and BRIEF IR total
-lm2 <- lm (PCET.PCET_ACC2 ~ part_age_screen + 
-             briefa_inf_gec_raw , data = merge.all.p)
+#PCET accuracy with BRIEF IR total
+lm2 <- lm (PCET.PCET_ACC2 ~ part_age_screen.x + 
+             briefa_inf_gec_raw , data = mergeInf.cnp.p)
 summary(lm2)
 lm.beta(lm2)
 
-#PCET RT with SRS SR total and BRIEF SR total
-lm3 <- lm (PCET.PCETRTCR ~ part_age_screen + 
-             briefa_sr_gec_raw , data = merge.all.p)
+#PCET RT with BRIEF SR total
+lm3 <- lm (PCET.PCETRTCR ~ part_age_screen.x + 
+             briefa_sr_gec_raw , data = mergeSelf.cnp.p)
 summary(lm3)
 lm.beta(lm3)
 
-#PCET RT with SRS IR total and BRIEF IR total
-lm4 <- lm (PCET.PCETRTCR ~ part_age_screen + 
-             briefa_inf_gec_raw, data = merge.all.p)
+#PCET RT with BRIEF IR total
+lm4 <- lm (PCET.PCETRTCR ~ part_age_screen.x + 
+             briefa_inf_gec_raw, data = mergeInf.cnp.p)
 summary(lm4)
 lm.beta(lm4)
 
-#PMAT accuracy with SRS SR total and BRIEF SR total
-lm1 <- lm (PMAT24A.PMAT24_A_CR ~ part_age_screen + 
-             briefa_sr_gec_raw, data = merge.all.p)
+#PMAT accuracy with BRIEF SR total
+lm1 <- lm (PMAT24A.PMAT24_A_CR ~ part_age_screen.x + 
+             briefa_sr_gec_raw, data = mergeSelf.cnp.p)
 summary(lm1)
 lm.beta(lm1)
 
-#PMAT accuracy with SRS IR total and BRIEF IR total
-lm2 <- lm (PMAT24A.PMAT24_A_CR ~ part_age_screen + 
-             briefa_inf_gec_raw, data = merge.all.p)
+#PMAT accuracy with BRIEF IR total
+lm2 <- lm (PMAT24A.PMAT24_A_CR ~ part_age_screen.x + 
+             briefa_inf_gec_raw, data = mergeInf.cnp.p)
 summary(lm2)
 lm.beta(lm2)
 
-#PMAT RT with SRS SR total and BRIEF SR total
-lm3 <- lm (PMAT24A.PMAT24_A_RTCR ~ part_age_screen + 
-             briefa_sr_gec_raw, data = merge.all.p)
+#PMAT RT with BRIEF SR total
+lm3 <- lm (PMAT24A.PMAT24_A_RTCR ~ part_age_screen.x + 
+             briefa_sr_gec_raw, data = mergeSelf.cnp.p)
 summary(lm3)
 lm.beta(lm3)
 
-#PMAT RT with SRS IR total and BRIEF IR total
-lm4 <- lm (PMAT24A.PMAT24_A_RTCR ~ part_age_screen + 
-             briefa_inf_gec_raw, data = merge.all.p)
+#PMAT RT with BRIEF IR total
+lm4 <- lm (PMAT24A.PMAT24_A_RTCR ~ part_age_screen.x + 
+             briefa_inf_gec_raw, data = mergeInf.cnp.p)
 summary(lm4)
 lm.beta(lm4)
 
 #UNAFFECTED FAMILY MEMBERS
-#ER40 accuracy with SRS SR total and SRS SR Soc Cog
-lm1 <- lm (K_ER40.ER40_CR ~ part_age_screen +  
-             srs2a_sr_raw , data = unaff.f)
+#ER40 accuracy with SRS SR total
+lm1 <- lm (K_ER40.ER40_CR ~ part_age_screen.x +  
+             srs2a_sr_raw , data = mergeSelf.cnp.f)
 summary(lm1)
 lm.beta(lm1)
 
-#ER40 accuracy with SRS IR total and SRS IR Soc Cog
-lm2 <- lm (K_ER40.ER40_CR ~ part_age_screen +  
-             srs2a_ir_raw , data = unaff.f)
+#ER40 accuracy with SRS IR total
+lm2 <- lm (K_ER40.ER40_CR ~ part_age_screen.x +  
+             srs2a_ir_raw , data = mergeInf.cnp.f)
 summary(lm2)
 lm.beta(lm2)
 
-#ER40 RT with SRS SR total and SRS SR Soc Cog
-lm3 <- lm (K_ER40.ER40_CRT ~ part_age_screen + 
-             srs2a_sr_raw , data = merge.all.p)
+#ER40 RT with SRS SR total
+lm3 <- lm (K_ER40.ER40_CRT ~ part_age_screen.x + 
+             srs2a_sr_raw , data = mergeSelf.cnp.f)
 summary(lm3)
 lm.beta(lm3)
 
-#ER40 RT with SRS IR total and SRS IR Soc Cog
-lm4 <- lm (K_ER40.ER40_CRT ~ part_age_screen +  
-             srs2a_ir_raw , data = unaff.f)
+#ER40 RT with SRS IR total
+lm4 <- lm (K_ER40.ER40_CRT ~ part_age_screen.x +  
+             srs2a_ir_raw , data = mergeInf.cnp.f)
 summary(lm4)
 lm.beta(lm4)
 
 
-#PCET accuracy with SRS SR total and BRIEF SR total
-lm1 <- lm (PCET.PCET_ACC2 ~ part_age_screen + 
-             briefa_sr_gec_raw , data = unaff.f)
+#PCET accuracy with BRIEF SR total
+lm1 <- lm (PCET.PCET_ACC2 ~ part_age_screen.x + 
+             briefa_sr_gec_raw , data = mergeSelf.cnp.f)
 summary(lm1)
 lm.beta(lm1)
 
-#PCET accuracy with SRS IR total and BRIEF IR total
-lm2 <- lm (PCET.PCET_ACC2 ~ part_age_screen + 
-             briefa_inf_gec_raw , data = unaff.f)
+#PCET accuracy with BRIEF IR total
+lm2 <- lm (PCET.PCET_ACC2 ~ part_age_screen.x + 
+             briefa_inf_gec_raw , data = mergeInf.cnp.f)
 summary(lm2)
 lm.beta(lm2)
 
-#PCET RT with SRS SR total and BRIEF SR total
-lm3 <- lm (PCET.PCETRTCR ~ part_age_screen + 
-             briefa_sr_gec_raw , data = unaff.f)
+#PCET RT with BRIEF SR total
+lm3 <- lm (PCET.PCETRTCR ~ part_age_screen.x + 
+             briefa_sr_gec_raw , data = mergeSelf.cnp.f)
 summary(lm3)
 lm.beta(lm3)
 
-#PCET RT with SRS IR total and BRIEF IR total
-lm4 <- lm (PCET.PCETRTCR ~ part_age_screen + 
-             briefa_inf_gec_raw, data = unaff.f)
+#PCET RT with BRIEF IR total
+lm4 <- lm (PCET.PCETRTCR ~ part_age_screen.x + 
+             briefa_inf_gec_raw, data = mergeInf.cnp.f)
 summary(lm4)
 lm.beta(lm4)
 
-#PMAT accuracy with SRS SR total and BRIEF SR total
-lm1 <- lm (PMAT24A.PMAT24_A_CR ~ part_age_screen + 
-             briefa_sr_gec_raw, data = unaff.f)
+#PMAT accuracy with BRIEF SR total
+lm1 <- lm (PMAT24A.PMAT24_A_CR ~ part_age_screen.x + 
+             briefa_sr_gec_raw, data = mergeSelf.cnp.f)
 summary(lm1)
 lm.beta(lm1)
 
-#PMAT accuracy with SRS IR total and BRIEF IR total
-lm2 <- lm (PMAT24A.PMAT24_A_CR ~ part_age_screen + 
-             briefa_inf_gec_raw, data = unaff.f)
+#PMAT accuracy with BRIEF IR total
+lm2 <- lm (PMAT24A.PMAT24_A_CR ~ part_age_screen.x + 
+             briefa_inf_gec_raw, data = mergeInf.cnp.f)
 summary(lm2)
 lm.beta(lm2)
 
-#PMAT RT with SRS SR total and BRIEF SR total
-lm3 <- lm (PMAT24A.PMAT24_A_RTCR ~ part_age_screen + 
-             briefa_sr_gec_raw, data = unaff.f)
+#PMAT RT with BRIEF SR total
+lm3 <- lm (PMAT24A.PMAT24_A_RTCR ~ part_age_screen.x + 
+             briefa_sr_gec_raw, data = mergeSelf.cnp.f)
 summary(lm3)
 lm.beta(lm3)
 
-#PMAT RT with SRS IR total and BRIEF IR total
-lm4 <- lm (PMAT24A.PMAT24_A_RTCR ~ part_age_screen + 
-             briefa_inf_gec_raw, data = unaff.f)
+#PMAT RT with BRIEF IR total
+lm4 <- lm (PMAT24A.PMAT24_A_RTCR ~ part_age_screen.x + 
+             briefa_inf_gec_raw, data = mergeInf.cnp.f)
 summary(lm4)
 lm.beta(lm4)
 
