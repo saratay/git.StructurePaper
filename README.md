@@ -10,7 +10,7 @@ Breakdown of type of informants - "DiscrepInfDesc_9.14.21.R"
 
 Figure 1 and Supplement Figure 1- "Discrep_Figure1_11.8.21.R"
 
-Figure 2 and SUpplement Figure 2- "Discrep_Figure2_11.8.21.R"
+Figure 2 and Supplement Figure 2- "Discrep_Figure2_11.8.21.R"
 
 Intraclass correlation analysis - "DiscrepICC_10.1.21.R"
 
